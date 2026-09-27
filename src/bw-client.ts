@@ -865,10 +865,12 @@ export class BwClient {
   ): Promise<string> {
     await this.ensureCsrf();
     const path = `/sap/bw/modeling/${type.toLowerCase()}/${bwSeg(name)}/m?lockHandle=${lockHandle}`;
+    // The resource can serve a lower version than discovery advertises for the collection
+    // (CKF on a classic release), so the version is negotiated the same way the lock is.
     const response = await this.http.delete(path, {
       headers: {
-        'Content-Type': mediaType,
-        Accept: mediaType,
+        'Content-Type': `application/xml, ${mediaType}`,
+        Accept: expandAccept(mediaType),
         'X-CSRF-Token': this.csrfToken!,
         ...this.cookieHeaders(),
       },

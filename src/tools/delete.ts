@@ -128,8 +128,11 @@ export async function bwDelete(
     throw err;
   }
 
-  // 3. Unlock — no /m (same as normal unlock)
-  await client.unlock(typeLower, objectName);
+  // 3. Unlock — no /m (same as normal unlock). The delete already succeeded; some resources
+  // (CKF, RKF) no longer resolve once the object is gone and answer the unlock with HTTP 404.
+  await client.unlock(typeLower, objectName).catch((unlockErr) => {
+    process.stderr.write(`Warning: failed to unlock ${typeLower} ${objectName} after delete: ${unlockErr}\n`);
+  });
 
   // 4. Parse atom feed response
   const messages = parseAtomTitles(deleteResult);
