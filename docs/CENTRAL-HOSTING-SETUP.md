@@ -155,6 +155,14 @@ cf create-service connectivity lite        bwmcp-connectivity   # on-premise BW 
 These names match the `services:` list in `manifest.yml`. If you rename a service, update
 the manifest to match.
 
+The XSUAA instance keeps the scopes it was created with. When a newer version changes
+`xs-security.json`, apply it before or with the push, or logins fail with `invalid_scope`
+because the app advertises a scope the instance does not know:
+
+```bash
+cf update-service bwmcp-xsuaa -c xs-security.json
+```
+
 ---
 
 ## Step 5 — Configure `manifest.yml`
@@ -192,7 +200,7 @@ The MCP endpoint is that route plus `/mcp`.
 
 ## Step 7 — Assign roles to users
 
-Two role collections ship in `xs-security.json`:
+Three role collections ship in `xs-security.json`:
 
 | Collection | Grants |
 |---|---|

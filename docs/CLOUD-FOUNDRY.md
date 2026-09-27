@@ -28,13 +28,13 @@ propagation. Both use the same image and the same role collections.
 
 ## 1. Roles
 
-Two role collections ship in `xs-security.json`:
+Three role collections ship in `xs-security.json`:
 
 | Collection | Scope | Gets |
 |---|---|---|
 | **BW MCP Reader** | `read` | the 45 read tools — modelling objects, flows, routines, monitoring and query data |
 | **BW MCP Analyst** | `analyst` | 14 reporting tools: run a query or a provider, and find and understand what to run. A subset of `read`, meant as a small client for business users rather than as a narrower permission |
-| **BW MCP Developer** | `read` + `write` | all 83 |
+| **BW MCP Developer** | `read` + `analyst` + `write` | all 83 |
 
 A reader does not merely get errors from the write tools — they are filtered out of
 `tools/list`, so the model never proposes a call that will be denied.
@@ -143,7 +143,8 @@ SNC is not involved — that is the RFC propagation path, not HTTPS.
 | `502 Could not connect to BW` | destination lookup or propagation failed | the message says which; check the destination name and binding |
 | 401 + basic-auth popup; ICM trace `intermediary is NOT trusted` | ICM stripped `SSL_CLIENT_CERT` | step 9 — missing, mistyped, lowercase keyword, wrong spacing, or both variants set |
 | `403 Access denied to resource … expose the resource correctly in your cloud connector` | path not exposed | step 7 — a Cloud Connector message, not an authorization failure |
-| `invalid_scope` at login | role collection assigned under the wrong identity provider | re-assign with the right `--of-idp` |
+| `invalid_scope` at login, message `<xsappname>.<scope> is invalid` | the XSUAA instance predates a scope the app advertises — `xs-security.json` changed, the instance was not updated | `cf update-service bwmcp-xsuaa -c xs-security.json`, then log in again |
+| `invalid_scope` at login, no scope named | role collection assigned under the wrong identity provider | re-assign with the right `--of-idp` |
 | First call takes ~70 s | BW initializes each ICF handler on first use | expected; sub-second afterwards. `/health` does not touch BW |
 
 Traces: SMICM → Goto → Trace → Level 2; Cloud Connector loggers to All/Debug. SAP guides:
