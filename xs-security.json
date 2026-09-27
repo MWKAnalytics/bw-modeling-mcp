@@ -47,9 +47,7 @@
       "https://claude.ai/**",
       "https://claude.com/**",
       "https://*.anthropic.com/**",
-      "http://localhost:*/**",
-      "vscode://**",
-      "cursor://**"
+      "http://localhost:*/**"
     ],
     "token-validity": 43200,
     "refresh-token-validity": 604800

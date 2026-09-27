@@ -144,6 +144,7 @@ SNC is not involved — that is the RFC propagation path, not HTTPS.
 | 401 + basic-auth popup; ICM trace `intermediary is NOT trusted` | ICM stripped `SSL_CLIENT_CERT` | step 9 — missing, mistyped, lowercase keyword, wrong spacing, or both variants set |
 | `403 Access denied to resource … expose the resource correctly in your cloud connector` | path not exposed | step 7 — a Cloud Connector message, not an authorization failure |
 | `invalid_scope` at login, message `<xsappname>.<scope> is invalid` | the XSUAA instance predates a scope the app advertises — `xs-security.json` changed, the instance was not updated | `cf update-service bwmcp-xsuaa -c xs-security.json`, then log in again |
+| `Malformed redirect URIs detected … [vscode://…, cursor://…]` on `create-service` / `update-service` | an older copy of `xs-security.json` lists IDE schemes, which XSUAA rejects as a whole | remove both entries and run the command again. They are not needed: XSUAA only ever redirects to this server's own `/oauth/callback`, which then forwards to the client |
 | `invalid_scope` at login, no scope named | role collection assigned under the wrong identity provider | re-assign with the right `--of-idp` |
 | First call takes ~70 s | BW initializes each ICF handler on first use | expected; sub-second afterwards. `/health` does not touch BW |
 
