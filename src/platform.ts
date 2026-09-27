@@ -337,7 +337,9 @@ const BW4_ONLY: Record<string, string> = {
  * adds the analysis processes of a provider from their metadata table, because the
  * where-used index leaves them out and no REST route to them exists on any release. The REST
  * answer is always complete on its own, the addition sits under the same `read` scope, and
- * without ADT it is skipped with a line saying so instead of failing the call.
+ * without ADT it is skipped with a line saying so instead of failing the call. The same holds
+ * for the aggregation levels of a provider and the provider of an aggregation level, which
+ * `bw_xref` adds on every release.
  *
  * `topic` is what the caller was after, and is what the instructions list; several tools can
  * share one. Tools whose question has no answer on this platform at all (query data above
@@ -368,7 +370,9 @@ const CLASSIC_SUBSTITUTE: Record<string, { topic: string; call: string }> = {
     topic: 'Data flow around an object',
     call:
       'bw_xref on the object, one hop at a time — every hit says whether it feeds the object ' +
-      '(upstream) or is fed from it (downstream), analysis processes included; the parts of a ' +
+      '(upstream) or is fed from it (downstream), analysis processes and aggregation levels ' +
+      'included (object_type="ALVL" leads on to the provider below and the planning functions ' +
+      'on the level); the parts of a ' +
       'MultiProvider come with their type from bw_read_metadata_tables with object_type="MPRO"',
   },
   bw_get_planning_function: {

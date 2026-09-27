@@ -45,6 +45,8 @@ Every transformation and DTP hit carries its source and target (type and name) a
 
 On classic SAP BW, `bw_xref` on an aDSO, classic DSO, InfoCube, MultiProvider or InfoObject also lists the **analysis processes** that write to it (upstream) or read from it (downstream) — the backend's where-used index leaves them out. They are read through ADT DataPreview; without ADT access the list comes back without them, with a line saying they were not checked. On a MultiProvider the part providers are not where-used hits: `bw_read_metadata_tables` with `object_type="MPRO"` lists them with their type.
 
+On every release, `bw_xref` on a provider (aDSO, classic DSO, InfoCube, MultiProvider, CompositeProvider or InfoObject) lists the **aggregation levels** built on it as `upstream`: planned values reach the provider through them. `bw_xref` with `object_type=ALVL` lists, next to the queries on the level, the InfoProvider underneath (`downstream`) and the **planning functions** on the level (`upstream`, with their function type). A lineage followed hop by hop therefore reaches the planning input of a provider. Both come from the aggregation level and planning function definitions through ADT DataPreview; without ADT access the answer says they were not checked.
+
 For DataSources (`object_type=RSDS`): pass `source_system` — the correctly space-padded objectName is built automatically.
 
 ### `bw_system_profile` _(Read only)_

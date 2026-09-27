@@ -269,6 +269,8 @@ const TOOL_DEFINITIONS = [
         'Every transformation and DTP hit carries its source and target (type and name) and its direction relative to the object: ' +
         'upstream (feeds it) or downstream (fed from it) — follow upstream hits hop by hop to trace a data flow back to its DataSource. ' +
         'On classic SAP BW the analysis processes that write to or read from a provider (ADSO, ODSO, CUBE, MPRO, IOBJ) are listed too, with direction. ' +
+        'On every release the aggregation levels built on a provider are listed as upstream (planned values are written into the provider through them), ' +
+        'and object_type=ALVL lists the InfoProvider underneath (downstream) and the planning functions on the level (upstream) next to its queries. ' +
         'Use object_type=DTPA to find the process chain(s) a DTP belongs to — this is preferred over bw_get_dtp when only the process chain is needed.',
       inputSchema: {
         type: 'object',

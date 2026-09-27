@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAtomEntries, parseFlowTitle, annotateXref } from '../dist/tools/search.js';
+import { parseAtomEntries, parseFlowTitle, annotateXref, mergeXrefHits } from '../dist/tools/search.js';
 
 // The where-used feed carries no direction of its own. Transformation and DTP titles do name
 // source and target, in the same format on BW/4HANA and on classic releases, and that is the
@@ -117,4 +117,31 @@ test('a DataSource is matched by name and source system', () => {
   );
   assert.equal(hits[0].direction, 'downstream');
   assert.equal(hits[1].direction, undefined);
+});
+
+test('a supplementary hit the index already lists takes over its direction, the rest is appended', () => {
+  // BW/4HANA lists the aggregation level on a provider without a direction; a classic release
+  // does not list it at all. Both are completed from the aggregation level definition.
+  const hits = annotateXref([entry('LEVEL_A', 'ALVL', 'A level'), entry('QUERY_X', 'ELEM', 'A query')], 'ADSO', 'PROV');
+  const self = { type: 'ADSO', name: 'PROV' };
+  const level = (name) => ({
+    ...entry(name, 'ALVL', ''),
+    direction: 'upstream',
+    source: { type: 'ALVL', name },
+    target: self,
+    origin: 'aggregation level definition',
+  });
+  mergeXrefHits(hits, [level('LEVEL_A'), level('LEVEL_B')]);
+  assert.deepEqual(hits.map((h) => h.objectName), ['LEVEL_A', 'QUERY_X', 'LEVEL_B']);
+  assert.equal(hits[0].direction, 'upstream');
+  assert.equal(hits[0].title, 'A level');
+  assert.deepEqual(hits[0].target, self);
+  assert.equal(hits[1].direction, undefined);
+});
+
+test('a merged hit fills the status and description the index leaves out', () => {
+  const hits = [{ ...entry('FUNC_A', 'PLSE', 'FUNC_A'), objectStatus: 'unknown' }];
+  mergeXrefHits(hits, [{ ...entry('FUNC_A', 'PLSE', 'Copy plan data'), direction: 'upstream' }]);
+  assert.equal(hits[0].objectStatus, 'active');
+  assert.equal(hits[0].title, 'Copy plan data');
 });

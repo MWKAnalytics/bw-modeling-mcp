@@ -1,6 +1,7 @@
 import { BwClient } from '../bw-client.js';
 import type { Platform } from '../platform.js';
 import { queryTable, sqlLiteral, inListBatches } from './metadata_sql.js';
+import { providerTypes } from './metadata_tables.js';
 
 interface SearchEntry {
   objectName: string;
@@ -426,6 +427,172 @@ async function fillAnalysisProcessStatus(client: BwClient, hits: XrefHit[]): Pro
   }
 }
 
+/** Object types an aggregation level can be built on, as RSPLS_ALVL-INFOPROV names them. */
+const ALVL_PROVIDER_TYPES = new Set(['ADSO', 'ODSO', 'CUBE', 'MPRO', 'HCPR', 'IOBJ']);
+
+/** Active version wins; an object that only exists inactive keeps its newest other row. */
+function activeFirst(rows: Record<string, string>[], key: string): Map<string, Record<string, string>> {
+  const byKey = new Map<string, Record<string, string>>();
+  for (const r of rows) {
+    const held = byKey.get(r[key]);
+    if (!held || r.OBJVERS === 'A') byKey.set(r[key], r);
+  }
+  return byKey;
+}
+
+async function longTexts(client: BwClient, table: string, key: string, names: string[]): Promise<Map<string, string>> {
+  const texts = new Map<string, string>();
+  for (const batch of inListBatches(names, 150)) {
+    try {
+      const rows = await queryTable(
+        client,
+        `SELECT ${key}, langu, txtlg FROM ${table} WHERE ${key} IN (${batch}) AND objvers = 'A'`,
+        500,
+      );
+      const col = key.toUpperCase();
+      for (const r of rows) {
+        if (r.TXTLG && (r.LANGU === 'E' || !texts.has(r[col]))) texts.set(r[col], r.TXTLG.trim());
+      }
+    } catch {
+      // A description is an enrichment; the name identifies the object.
+    }
+  }
+  return texts;
+}
+
+/**
+ * The aggregation levels built on a provider.
+ *
+ * Planned values are written into the provider through them, so each one feeds it (upstream).
+ * The where-used index misses them on a classic release and lists them without a direction on
+ * BW/4HANA; RSPLS_ALVL holds the relationship on both. Undefined when the table cannot be read.
+ */
+async function aggregationLevelsOn(client: BwClient, type: string, name: string): Promise<XrefHit[] | undefined> {
+  let rows: Record<string, string>[];
+  try {
+    rows = await queryTable(
+      client,
+      `SELECT aggrlevel, objvers FROM rspls_alvl WHERE infoprov = '${sqlLiteral(name)}'`,
+      500,
+    );
+  } catch {
+    return undefined;
+  }
+  const levels = activeFirst(rows, 'AGGRLEVEL');
+  if (levels.size === 0) return [];
+  const texts = await longTexts(client, 'rspls_alvlt', 'aggrlevel', [...levels.keys()]);
+  const self: FlowEnd = { type, name };
+  return [...levels.values()]
+    .sort((a, b) => a.AGGRLEVEL.localeCompare(b.AGGRLEVEL))
+    .map((r) => ({
+      objectName: r.AGGRLEVEL,
+      objectType: 'ALVL',
+      objectStatus: r.OBJVERS === 'A' ? 'active' : 'inactive',
+      objectVersion: '',
+      title: texts.get(r.AGGRLEVEL) ?? '',
+      href: '',
+      direction: 'upstream' as Direction,
+      source: { type: 'ALVL', name: r.AGGRLEVEL },
+      target: self,
+      origin: 'aggregation level definition (RSPLS_ALVL) — read it with bw_get_aggregation_level',
+    }));
+}
+
+/**
+ * What an aggregation level stands between: the provider it writes to (downstream) and the
+ * planning functions that change its data (upstream). Neither is in the where-used index.
+ * Undefined when RSPLS_ALVL cannot be read.
+ */
+async function aggregationLevelEnds(
+  client: BwClient,
+  name: string,
+  platform?: Platform,
+): Promise<XrefHit[] | undefined> {
+  let rows: Record<string, string>[];
+  try {
+    rows = await queryTable(
+      client,
+      `SELECT aggrlevel, objvers, infoprov FROM rspls_alvl WHERE aggrlevel = '${sqlLiteral(name)}'`,
+      10,
+    );
+  } catch {
+    return undefined;
+  }
+  const level = activeFirst(rows, 'AGGRLEVEL').get(name);
+  if (!level?.INFOPROV) return [];
+
+  const self: FlowEnd = { type: 'ALVL', name };
+  const provider = level.INFOPROV.trim();
+  const providerType = (await providerTypes(client, [provider])).get(provider);
+  const hits: XrefHit[] = [
+    {
+      objectName: provider,
+      objectType: providerType ?? '',
+      objectStatus: providerType ? 'active' : 'unknown',
+      objectVersion: '',
+      title: '',
+      href: '',
+      direction: 'downstream',
+      source: self,
+      target: { type: providerType, name: provider },
+      origin: 'InfoProvider of the aggregation level (RSPLS_ALVL)',
+    },
+  ];
+
+  let functions: Record<string, string>[] = [];
+  try {
+    functions = await queryTable(
+      client,
+      `SELECT srvnm, objvers, srvtypenm FROM rsplf_srv WHERE infoprov = '${sqlLiteral(name)}'`,
+      500,
+    );
+  } catch {
+    // Without the planning function table the provider is still the answer that matters.
+  }
+  const byName = activeFirst(functions, 'SRVNM');
+  const texts = await longTexts(client, 'rsplf_srvt', 'srvnm', [...byName.keys()]);
+  const reader =
+    platform === 'classic' ? 'bw_read_metadata_tables object_type="PLSE"' : 'bw_get_planning_function';
+  for (const r of [...byName.values()].sort((a, b) => a.SRVNM.localeCompare(b.SRVNM))) {
+    hits.push({
+      objectName: r.SRVNM,
+      objectType: 'PLSE',
+      objectStatus: r.OBJVERS === 'A' ? 'active' : 'inactive',
+      objectVersion: '',
+      title: texts.get(r.SRVNM) ?? '',
+      href: '',
+      direction: 'upstream',
+      source: { type: 'PLSE', name: r.SRVNM },
+      target: self,
+      origin:
+        `planning function of type ${r.SRVTYPENM.trim()} (RSPLF_SRV) — read it with ${reader}`,
+    });
+  }
+  return hits;
+}
+
+/**
+ * Merge supplementary hits into a where-used list. A hit the index already has keeps its
+ * place and takes over direction, ends and origin, and the status and description where the
+ * index has none (it lists planning functions with an unknown status and their name as title);
+ * the rest is appended.
+ */
+export function mergeXrefHits(hits: XrefHit[], extra: XrefHit[]): void {
+  for (const e of extra) {
+    const held = hits.find((h) => h.objectType === e.objectType && h.objectName === e.objectName);
+    if (held) {
+      held.direction = e.direction;
+      held.source = e.source;
+      held.target = e.target;
+      held.origin ??= e.origin;
+      if (held.objectStatus === 'unknown') held.objectStatus = e.objectStatus;
+      if (e.title && (!held.title || held.title.toUpperCase() === held.objectName)) held.title = e.title;
+    } else {
+      hits.push(e);
+    }
+  }
+}
+
 /**
  * bw_xref — find where-used / dependencies for any BW object.
  *
@@ -435,6 +602,8 @@ async function fillAnalysisProcessStatus(client: BwClient, hits: XrefHit[]): Pro
  * Returns all objects that use (reference) the given object, with the direction of every
  * transformation and DTP relative to it. On a classic release the analysis processes that
  * read from or write to a provider are added, since the where-used index leaves them out.
+ * The aggregation levels on a provider, and the provider and planning functions of an
+ * aggregation level, are added on every release.
  */
 export async function bwXref(
   client: BwClient,
@@ -475,6 +644,30 @@ export async function bwXref(
     } else {
       const listed = new Set(hits.filter((h) => h.objectType === 'ANPR').map((h) => h.objectName));
       hits.push(...apds.filter((a) => !listed.has(a.objectName)));
+    }
+  }
+
+  if (ALVL_PROVIDER_TYPES.has(type)) {
+    const levels = await aggregationLevelsOn(client, type, name);
+    if (levels === undefined) {
+      notes.push(
+        'Aggregation levels not checked — the ADT DataPreview service is not available for this ' +
+          'user. Planned values written into this object through an aggregation level may be ' +
+          'missing above, or listed without a direction.',
+      );
+    } else {
+      mergeXrefHits(hits, levels);
+    }
+  } else if (type === 'ALVL') {
+    const ends = await aggregationLevelEnds(client, name, platform);
+    if (ends === undefined) {
+      notes.push(
+        'The InfoProvider and the planning functions of this aggregation level were not checked — ' +
+          'the ADT DataPreview service is not available for this user. bw_get_aggregation_level ' +
+          'names the InfoProvider.',
+      );
+    } else {
+      mergeXrefHits(hits, ends);
     }
   }
 
