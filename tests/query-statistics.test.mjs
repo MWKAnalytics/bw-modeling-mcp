@@ -38,6 +38,8 @@ function fakeClient(tables) {
     async rawPost(url, sql) {
       statements.push(sql);
       assert.ok(sql.length <= 255, `statement longer than DataPreview parses (${sql.length}): ${sql}`);
+      // The DataPreview parser rejects `a=b` ("A Boolean expression was expected"), found live.
+      assert.doesNotMatch(sql, /[^\s<>!]=|=[^\s]/, `comparison without blanks: ${sql}`);
       const table = Object.keys(tables).find((t) => new RegExp(`FROM ${t}\\b`, 'i').test(sql));
       return { body: dataPreview(table ? tables[table](sql) : []), headers: {} };
     },
@@ -133,7 +135,7 @@ test('steps of one object in a window are found by one short statement and folde
   );
   assert.equal(steps.length, 1);
   assert.equal(steps[0].user, 'ANALYST');
-  assert.match(client.statements[0], /objname='\$A_THIRTY_CHARACTER_PROVIDER_NM'/);
+  assert.match(client.statements[0], /objname = '\$A_THIRTY_CHARACTER_PROVIDER_NM'/);
   assert.match(client.statements[0], /BETWEEN 20260929141450 AND 20260929141500/);
 });
 
