@@ -439,8 +439,11 @@ export async function bwQueryStatistics(client: BwClient, args: QueryStatisticsA
     const { step, objects } = await readStep(client, args.step_uid);
     if (!step) return `No statistics step ${args.step_uid} (deleted by the statistics housekeeping, or a mistyped id).`;
     const lines = [`Statistics step ${step.stepUid}`];
-    const objs = objects.filter((o) => o.OBJNAME || o.INFOPROV);
-    if (objs.length > 0) lines.push(`  Objects:        ${objs.map((o) => `${o.OBJNAME || o.INFOPROV} [${o.HANDLETP}]`).join(', ')}`);
+    // A query with two OLAP handles (e.g. two structures) has a header row per handle; name it once.
+    const objs = [...new Set(
+      objects.filter((o) => o.OBJNAME || o.INFOPROV).map((o) => `${o.OBJNAME || o.INFOPROV} [${o.HANDLETP}]`),
+    )];
+    if (objs.length > 0) lines.push(`  Objects:        ${objs.join(', ')}`);
     const [events, dm] = [await readStepEvents(client, step.stepUid), await readStepDataManager(client, step.stepUid)];
     lines.push(...renderStepDetail(step, events, dm, 15));
     return lines.join('\n');
