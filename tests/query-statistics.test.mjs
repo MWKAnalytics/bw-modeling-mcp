@@ -94,6 +94,7 @@ test('a provider call is recorded as $ + name, a query under its own name', () =
 
 test('events fall into their layer by id range', () => {
   assert.equal(eventCategory(0), 'Not assigned');
+  assert.equal(eventCategory(1), 'Waiting for front end/user');
   assert.equal(eventCategory(2505), 'OLAP cache');
   assert.equal(eventCategory(3110), 'OLAP processor');
   assert.equal(eventCategory(3200), 'Transfer to front end');
@@ -291,4 +292,12 @@ test('the timing block separates server, HTTP and CSRF time', () => {
   assert.match(lines, /CSRF token: {7}0\.250 s/);
   assert.match(lines, /Server's own: {5}0\.050 s/);
   assert.match(lines, /9\.0 KB \/ 400\.0 KB/);
+});
+
+test('a layer without measurable time is left out', () => {
+  const totals = categoryTotals([
+    { eventId: 9000, time: 1.2, count: 0 },
+    { eventId: 4300, time: 0, count: 0 },
+  ]);
+  assert.deepEqual(totals.map((t) => t.category), ['Data manager (database)']);
 });
