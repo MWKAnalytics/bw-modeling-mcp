@@ -144,12 +144,14 @@ export interface StatEvent {
   text: string;
   time: number;
   count: number;
+  /** Event property — for 3115 the effective "Operations in SAP HANA" mode. */
+  prop: string;
 }
 
 export async function readStepEvents(client: BwClient, stepUid: string): Promise<StatEvent[]> {
   const rows = await queryTable(
     client,
-    `SELECT e~handletp,e~eventid,e~evtime,e~evcount,t~txtlg FROM rsddstatevdata AS e ` +
+    `SELECT e~handletp,e~eventid,e~evtime,e~evcount,e~evprop,t~txtlg FROM rsddstatevdata AS e ` +
       `LEFT OUTER JOIN rsddstateventst AS t ON t~eventid=e~eventid AND t~langu='E' ` +
       `WHERE e~stepuid='${sqlLiteral(stepUid.trim())}'`,
     500,
@@ -160,8 +162,26 @@ export async function readStepEvents(client: BwClient, stepUid: string): Promise
     text: r.TXTLG ?? '',
     time: Number(r.EVTIME ?? 0),
     count: Number(r.EVCOUNT ?? 0),
+    prop: (r.EVPROP ?? '').trim(),
   }));
 }
+
+/**
+ * Fixed values of domain RSRTREXOPS, the query property "Operations in SAP HANA" as RSRT
+ * shows it. Event 3115 carries the mode a step actually ran with in EVPROP, not in EVCOUNT.
+ */
+export const HANA_OPERATIONS: Record<string, string> = {
+  '0': 'no optimized operations in SAP HANA',
+  '2': 'individual access per InfoProvider',
+  '3': 'optimized access',
+  '6': 'exception aggregation in SAP HANA',
+  '7': 'formulas calculated in SAP HANA',
+  '8': 'formulas calculated in SAP HANA, with complex currency/unit',
+  '9': 'conditions calculated in SAP HANA',
+  J: 'defensive',
+  M: 'standard',
+  P: 'offensive',
+};
 
 /**
  * The layer an OLAP event belongs to, by its id range (domain RSSTA_EVENTN; texts in
@@ -274,7 +294,12 @@ export function renderStepDetail(
   // 3115 records how "operations in HANA" were effectively executed — the first thing to
   // check when a query is slow, and otherwise only visible in RSRT.
   const hana = events.find((e) => e.eventId === 3115);
-  if (hana) out.push(`  Event 3115:     present (effective "Operations in HANA" setting, count ${hana.count})`);
+  if (hana) {
+    const mode = hana.prop
+      ? `${hana.prop} — ${HANA_OPERATIONS[hana.prop] ?? 'not a value of RSRTREXOPS'}`
+      : 'not recorded';
+    out.push(`  HANA operations (event 3115): ${mode}`);
+  }
 
   if (dm.length > 0) {
     out.push('  Data manager:');
