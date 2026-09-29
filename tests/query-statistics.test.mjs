@@ -19,10 +19,10 @@ import { renderQueryDataText, isSubtotalRow, renderTiming } from '../dist/tools/
 
 /** The column-oriented XML the ADT DataPreview service answers with. */
 function dataPreview(rows) {
-  const cols = rows.length ? Object.keys(rows[0]) : [];
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
   const blocks = cols.map((c) =>
     `<dataPreview:columns><dataPreview:metadata dataPreview:name="${c}"/><dataPreview:dataSet>` +
-    rows.map((r) => (r[c] === '' ? '<dataPreview:data/>' : `<dataPreview:data>${r[c]}</dataPreview:data>`)).join('') +
+    rows.map((r) => (!r[c] ? '<dataPreview:data/>' : `<dataPreview:data>${r[c]}</dataPreview:data>`)).join('') +
     `</dataPreview:dataSet></dataPreview:columns>`,
   );
   return `<?xml version="1.0"?><dataPreview:tableData>${blocks.join('')}</dataPreview:tableData>`;
@@ -55,7 +55,7 @@ const EVENTS = [
   { HANDLETP: 'OLAP', EVENTID: '000002505', EVTIME: '0.007845', EVCOUNT: '0', TXTLG: 'Read Cache Entries' },
   { HANDLETP: 'OLAP', EVENTID: '000009010', EVTIME: '0.000000', EVCOUNT: '1', TXTLG: 'DBTRANS' },
   { HANDLETP: 'OLAP', EVENTID: '000009011', EVTIME: '0.000000', EVCOUNT: '42', TXTLG: 'DBSEL' },
-  { HANDLETP: 'OLAP', EVENTID: '000003115', EVTIME: '0.000000', EVCOUNT: '0', TXTLG: 'Operations in HANA' },
+  { HANDLETP: 'OLAP', EVENTID: '000003115', EVTIME: '0.000000', EVCOUNT: '0', EVPROP: '8', TXTLG: 'Operations in HANA' },
 ];
 
 const DM = [{
@@ -149,7 +149,7 @@ test('a single step splits the HTTP time into BW runtime and transfer', async ()
   assert.match(out, /BW runtime: {5}0\.764 s/);
   assert.match(out, /OLAP processor/);
   assert.match(out, /42 records read \(DBSEL\)/);
-  assert.match(out, /Event 3115: {5}present/);
+  assert.match(out, /HANA operations \(event 3115\): 8 — formulas calculated in SAP HANA, with complex currency\/unit/);
   assert.match(out, /YDSD020: read 0\.200 s/);
   assert.match(out, /Split: {10}BW 0\.764 s \| network, Cloud Connector and XML transfer 1\.736 s/);
 });

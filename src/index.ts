@@ -3910,8 +3910,10 @@ const TOOL_DEFINITIONS = [
           state: {
             type: 'object',
             description:
-              'Axis layout and optional per-characteristic filters. ' +
-              'All InfoObjects from the query must be listed (even those staying on FREE axis). ' +
+              'Axis layout and optional per-characteristic filters, as a change to the default layout: list only the ' +
+              'InfoObjects you place on an axis or filter. Everything not listed keeps its default — the query\'s own ' +
+              'layout (rows, columns, hierarchies), or FREE on a direct provider call. Listing every InfoObject is not ' +
+              'needed and makes each call slower, since the whole state has to be written out every time. ' +
               'id values must come from the GET metadata response.',
             properties: {
               infoObjects: {
@@ -4032,7 +4034,7 @@ const TOOL_DEFINITIONS = [
               'drill_state: 3 = expand, 2 = collapse. ' +
               'element_idx: which dimension within the tuple (1 = first, 2 = second, etc.) — ' +
               'use 2 when ROWS has multiple dimensions and the target node is on the second one. ' +
-              'Requires the full state and variables to be sent again in the same POST (stateless endpoint). ' +
+              'Requires the same state and variables to be sent again in the same POST (stateless endpoint). ' +
               'Use after an initial bw_query_data call to drill into a collapsed structure node or hierarchy node.',
             items: {
               type: 'object',
