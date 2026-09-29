@@ -92,7 +92,7 @@ export async function findStatSteps(
 ): Promise<StatStep[]> {
   const sql =
     `SELECT i~stepuid,i~uname,i~starttime,i~runtime FROM rsddstatinfo AS i ` +
-    `JOIN rsddstatheader AS h ON h~stepuid=i~stepuid WHERE h~objname='${sqlLiteral(objName)}' ` +
+    `INNER JOIN rsddstatheader AS h ON h~stepuid = i~stepuid WHERE h~objname = '${sqlLiteral(objName)}' ` +
     `AND i~starttime BETWEEN ${statStamp(from)} AND ${statStamp(to)}`;
   const rows = await queryTable(client, sql, maxRows);
   const seen = new Map<string, StatStep>();
@@ -114,14 +114,14 @@ export async function readStep(client: BwClient, stepUid: string): Promise<{ ste
   const uid = sqlLiteral(stepUid.trim());
   const info = await queryTable(
     client,
-    `SELECT stepuid,uname,starttime,runtime FROM rsddstatinfo WHERE stepuid='${uid}'`,
+    `SELECT stepuid,uname,starttime,runtime FROM rsddstatinfo WHERE stepuid = '${uid}'`,
     1,
   );
   if (info.length === 0) return { objects: [] };
   const r = info[0];
   const objects = await queryTable(
     client,
-    `SELECT handletp,infoprov,objname FROM rsddstatheader WHERE stepuid='${uid}'`,
+    `SELECT handletp,infoprov,objname FROM rsddstatheader WHERE stepuid = '${uid}'`,
     50,
   );
   return {
@@ -152,8 +152,8 @@ export async function readStepEvents(client: BwClient, stepUid: string): Promise
   const rows = await queryTable(
     client,
     `SELECT e~handletp,e~eventid,e~evtime,e~evcount,e~evprop,t~txtlg FROM rsddstatevdata AS e ` +
-      `LEFT OUTER JOIN rsddstateventst AS t ON t~eventid=e~eventid AND t~langu='E' ` +
-      `WHERE e~stepuid='${sqlLiteral(stepUid.trim())}'`,
+      `LEFT OUTER JOIN rsddstateventst AS t ON t~eventid = e~eventid AND t~langu = 'E' ` +
+      `WHERE e~stepuid = '${sqlLiteral(stepUid.trim())}'`,
     500,
   );
   return rows.map((r) => ({
@@ -229,7 +229,7 @@ export async function readStepDataManager(client: BwClient, stepUid: string): Pr
   return queryTable(
     client,
     `SELECT infoprov,partprov,timedmprep,timeread,timesid,timenavattr,timehierarchy,` +
-      `timedmpost,dbsel,dbtrans FROM rsddstatdm WHERE stepuid='${sqlLiteral(stepUid.trim())}'`,
+      `timedmpost,dbsel,dbtrans FROM rsddstatdm WHERE stepuid = '${sqlLiteral(stepUid.trim())}'`,
     200,
   );
 }
