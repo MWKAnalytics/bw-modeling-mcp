@@ -190,6 +190,8 @@ export const HANA_OPERATIONS: Record<string, string> = {
  */
 export function eventCategory(eventId: number): string {
   if (eventId === 0) return 'Not assigned';
+  // Event 1 is time the step spent waiting on the front end or the user, not BW work.
+  if (eventId === 1) return 'Waiting for front end/user';
   if (eventId === 3200) return 'Transfer to front end';
   if (eventId >= 2500 && eventId < 2600) return 'OLAP cache';
   if (eventId >= 3000 && eventId < 4000) return 'OLAP processor';
@@ -218,8 +220,10 @@ export function categoryTotals(events: StatEvent[]): CategoryTotal[] {
     const c = eventCategory(e.eventId);
     totals.set(c, (totals.get(c) ?? 0) + e.time);
   }
+  // A layer that took no measurable time says nothing and only lengthens the answer.
   return [...totals.entries()]
     .map(([category, time]) => ({ category, time }))
+    .filter((c) => c.time >= 0.0005)
     .sort((a, b) => b.time - a.time);
 }
 
