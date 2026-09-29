@@ -301,3 +301,18 @@ test('a layer without measurable time is left out', () => {
   ]);
   assert.deepEqual(totals.map((t) => t.category), ['Data manager (database)']);
 });
+
+test('a query with two OLAP handles is named once among the objects', async () => {
+  const client = fakeClient({
+    rsddstatinfo: () => [{ STEPUID: STEP, UNAME: 'ANALYST', STARTTIME: '20260923103617', RUNTIME: '142.2' }],
+    rsddstatheader: () => [
+      { HANDLETP: 'OLAP', INFOPROV: 'ZCSD008', OBJNAME: 'ZCSD008_SAC_Q999' },
+      { HANDLETP: 'OLAP', INFOPROV: 'ZCSD008', OBJNAME: 'ZCSD008_SAC_Q999' },
+      { HANDLETP: 'CLNT', INFOPROV: '', OBJNAME: 'ANALYTICSCLOUD' },
+    ],
+    rsddstatevdata: () => [],
+    rsddstatdm: () => [],
+  });
+  const out = await bwQueryStatistics(client, { step_uid: STEP });
+  assert.match(out, /Objects: {8}ZCSD008_SAC_Q999 \[OLAP\], ANALYTICSCLOUD \[CLNT\]\n/);
+});
