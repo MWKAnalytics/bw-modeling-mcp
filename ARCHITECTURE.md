@@ -87,6 +87,20 @@ before sending the document back:
 A delete that BW refuses releases its lock before the error is returned; a lock left behind
 would block every later change of the object until the session times out.
 
+- **Transformation aggregation.** The aggregation type of a rule (`RSTRANRULE-AGGR`) is not
+  an attribute of the `<rule>`: it is `aggregationType` on the target field in the
+  transformation's target segment, next to `defaultAggregationType` and
+  `aggregationCanBeOverwritten`. The rule steps repeat the field name without it, so the write
+  touches only the target segment. Every PUT of `bw_update_transformation` passes the document
+  through one hook (`adjustXml`) that sets it, so a rule change and an aggregation change are
+  saved together; an aggregation alone is saved without rewriting the rule.
+
+Arguments a writing tool does not declare are refused before any request goes to BW
+(`src/arguments.ts`). Handlers read the parameters they know, so anything else used to vanish
+while the save still reported success. Only top-level names are checked; nested objects are
+validated where they are interpreted. Read tools are not checked: an ignored argument there
+changes no data.
+
 ---
 
 ## Transport Request Handling
@@ -168,6 +182,7 @@ src/
 ├── destination.ts        # builds a BwClient from a BTP destination (PrincipalPropagation or BasicAuthentication)
 ├── request-context.ts    # AsyncLocalStorage holding the per-request BW client under principal propagation
 ├── scopes.ts             # read/write scope classification and tools/list filtering for XSUAA role-based access
+├── arguments.ts          # refusal of undeclared arguments to writing tools
 ├── platform.ts           # BW/4HANA vs classic BW detection and the platform half of the tools/list filter
 ├── classic-writes.ts     # per-write-tool status on a classic release, printed by bw_system_profile
 ├── bw-client.ts          # HTTP client (CSRF, session, lock/unlock, GET/PUT/POST/rawGet/rawPost/rawPut)

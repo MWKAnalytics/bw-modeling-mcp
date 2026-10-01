@@ -343,9 +343,10 @@ async function readTransformation(client: BwClient, tranId: string): Promise<str
     const type = rule.RULETYPE || stepTypeOf.get(rule.RULEID) || '?';
     const constant = constantOf.get(rule.RULEID);
     const label = constant !== undefined ? `${type} = "${constant}"` : type;
+    const aggr = rule.AGGR?.trim();
     out.push(
       `  [${label}]  ${sources.length ? sources.join(', ') : '(none)'}  →  ` +
-        `${targets.length ? targets.join(', ') : '(none)'}`,
+        `${targets.length ? targets.join(', ') : '(none)'}${aggr ? `  {AGGREGATION: ${aggr}}` : ''}`,
     );
   }
 

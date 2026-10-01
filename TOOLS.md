@@ -2,6 +2,8 @@
 
 Every tool the server exposes — 105 in total — with what it does and the parameters that matter.
 Tools marked _(Read only)_ change nothing in BW; everything else writes, activates, runs, or unlocks.
+A writing tool refuses a parameter it does not declare and names the ones it takes, so a misspelt
+parameter cannot be reported as applied.
 
 For what the server can do as a whole, see [What it can do](README.md#what-it-can-do) in the README.
 For the architecture and the full endpoint list, see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -149,7 +151,7 @@ Update an existing InfoSource — fields and description.
 ## Transformation
 
 ### `bw_get_transformation`
-Read a Transformation structure including all field mapping rules, routines, source, and target. Transformation names are UUID-like keys — use `bw_xref` on the target aDSO to find them.
+Read a Transformation structure including all field mapping rules, routines, source, and target. A rule into a target key figure shows its aggregation type (`{AGGREGATION: SUM}`, `MOV`, …); on a classic release `bw_read_metadata_tables` with `object_type="TRFN"` shows it the same way. Transformation names are UUID-like keys — use `bw_xref` on the target aDSO to find them.
 
 ### `bw_create_transformation`
 Create a new Transformation. Supports all source types (aDSO, InfoSource, DataSource/RSDS) and all target types (aDSO). For InfoObject (`IOBJ`) sources or targets, set `source_object_subtype` / `target_object_subtype` to select the facet — `TEXT` (text table), `ATTR` (attributes / master data), or `HIER` (hierarchy). Can copy structure from an existing Transformation.
@@ -159,6 +161,7 @@ Modify field mappings in an existing Transformation:
 - Map source field to target InfoObject (StepDirect)
 - Set or change the formula rule of a target field (StepFormula) — every operand of the expression is registered as a source of the rule, so a formula over several source fields works, and the formula text of an existing formula rule can be replaced
 - On a key figure with a currency or unit, a direct, formula or constant rule takes the value over unconverted. With `conversion` a direct rule converts it instead — `type` `"currency"` with a currency translation type or `"unit"` with a unit conversion type, given as `name`. The name is checked against the conversion types defined on the system; the source currency or unit comes from `source_unit_field`, else from the source key figure's own unit reference, and a conversion type with a fixed source needs neither
+- Set the aggregation type of a rule into a target key figure with `aggregation`: `SUM` (summation), `MOV` (overwrite), `MIN`, `MAX` or `NOP` (no aggregation). It decides what happens when several source records end up in one target record — in an aggregating transformation a key figure on `MOV` keeps one record per group without any error. Given with only `transformation_name` and `target_infoobject`, it changes the aggregation and leaves the rule as it is; given with a rule change, both are saved together. A characteristic, an unknown field and a target field whose aggregation the target fixes are refused
 
 ### `bw_set_transformation_routine`
 Set a field routine, start routine, or end routine on a Transformation. Supports both ABAP and AMDP (SQLScript). The routine code is written in combination with an ADT MCP server.

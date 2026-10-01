@@ -14,7 +14,8 @@ import { createRequire } from 'node:module';
 
 import { createClientFromEnv, type BwClient } from './bw-client.js';
 import { currentClient } from './request-context.js';
-import { filterToolsByScope, mayCall, scopesFor } from './scopes.js';
+import { filterToolsByScope, mayCall, requiredScope, scopesFor } from './scopes.js';
+import { undeclaredArguments } from './arguments.js';
 import {
   cachedPlatform,
   ensurePlatform,
@@ -862,6 +863,7 @@ const TOOL_DEFINITIONS = [
         'direct rule (multi-source/target) — maps a quantity together with its unit (or an amount with ' +
         'its currency) in one rule, as the Eclipse rule editor shows it. ' +
         'A rule on a key figure with a currency or unit takes the value over unconverted unless conversion is set. ' +
+        'aggregation sets how the rule aggregates into a target key figure (SUM, MOV, MIN, MAX, NOP), alone or with a rule change. ' +
         'Returns a lock_handle for bw_activate.',
       inputSchema: {
         type: 'object',
@@ -959,6 +961,16 @@ const TOOL_DEFINITIONS = [
               },
             },
             required: ['type'],
+          },
+          aggregation: {
+            type: 'string',
+            enum: ['SUM', 'MOV', 'MIN', 'MAX', 'NOP'],
+            description:
+              'Aggregation type of the rule on a target key figure: "SUM" (summation), "MOV" (overwrite), "MIN", "MAX" ' +
+              'or "NOP" (no aggregation). It decides what happens when several source records end up in one target ' +
+              'record. Given alone (with transformation_name and target_infoobject only), it changes the aggregation ' +
+              'and leaves the rule as it is; given with a rule change, both are saved together. Refused for a target ' +
+              'field whose aggregation the target does not let a transformation override.',
           },
           transport: {
             type: 'string',
@@ -5279,6 +5291,12 @@ async function handleToolCall(
     throw new McpError(ErrorCode.InvalidRequest, `Tool '${name}' requires the ${admitted} scope.`);
   }
 
+  // A write tool that ignored an argument it does not know would report a change it never made.
+  if (requiredScope(name) === 'write') {
+    const refused = undeclaredArguments(TOOL_DEFINITIONS.find((t) => t.name === name), args);
+    if (refused) return { content: [{ type: 'text', text: refused }], isError: true };
+  }
+
   // HTTP: the per-request client, whose identity came from XSUAA and the destination.
   // stdio: no request context, so read the environment exactly as before.
   const client = currentClient() ?? createClientFromEnv();
@@ -5528,6 +5546,8 @@ async function handleToolCall(
           args?.additional_source_fields as string[] | undefined,
           args?.unit_source_field as string | undefined,
           args?.conversion as RuleConversion | undefined,
+          args?.aggregation as string | undefined,
+          args?.rule_type !== undefined,
         );
         break;
 
