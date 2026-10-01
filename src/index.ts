@@ -3911,13 +3911,18 @@ const TOOL_DEFINITIONS = [
           state: {
             type: 'object',
             description:
-              'Axis layout and optional per-characteristic filters, as a change to the default layout. The ' +
-              'characteristics listed on ROWS or COLUMNS replace that axis, in the order given: another one the ' +
-              'query has there drops out of the result. So to filter a characteristic and keep the layout, list ' +
-              'every characteristic of its axis (from the GET), in order. An axis the request lists nothing on ' +
-              'keeps its default — the query\'s own layout, or FREE on a direct provider call — and FREE ' +
-              'characteristics need not be listed: writing out the whole state makes each call slower. ' +
-              'id values must come from the GET metadata response.',
+              'Axis layout and optional per-characteristic filters. A state is the complete layout of rows and ' +
+              'columns: the result shows there exactly the characteristics and structures the state lists on ' +
+              'ROWS and COLUMNS, in the order given, and every other one drops out — even when only a FREE ' +
+              'characteristic is listed, and although BW still echoes the old layout. So to filter a ' +
+              'characteristic and keep the layout, list everything that should stay on rows and columns ' +
+              '(from the GET, the key-figure structure included), in order. Characteristics staying on FREE ' +
+              'need not be listed. Without a state (variables only) the query layout stays. ' +
+              'id values must come from the GET metadata response. ' +
+              'BW applies some requests differently without an error — a characteristic or structure the state ' +
+              'does not list drops off rows and columns, an excluded hierarchy node becomes an included one; the text ' +
+              'answer lists every such difference under "Not applied", judged against the selection BW reports ' +
+              'as effective.',
             properties: {
               infoObjects: {
                 type: 'array',
@@ -3958,9 +3963,9 @@ const TOOL_DEFINITIONS = [
                         type: 'object',
                         properties: {
                           low: { type: 'string', description: 'Filter value in external key format (e.g. altName or CHAVL_EXT). Use this for members that have a named external key.' },
-                          lowInt: { type: 'string', description: 'Filter value in internal key format (e.g. GUID like 00O2...). Use when the member has no altName and only an internal GUID is known. Sends presentationMode="INT" in BICS XML.' },
+                          lowInt: { type: 'string', description: 'Filter value in internal key format (e.g. GUID like 00O2...). Use when the member has no altName and only an internal GUID is known, and always for a hierarchy node (its intKey in the result): BW does not convert an external node key correctly. Sends presentationMode="INT" in BICS XML.' },
                           lowText: { type: 'string', description: 'Display text for the value (optional).' },
-                          high: { type: 'string', description: 'Upper bound for interval operator BT.' },
+                          high: { type: 'string', description: 'Upper bound for interval operator BT, in the same format as the lower bound (internal with lowInt, external with low).' },
                           op: { type: 'string', description: 'Operator: EQ (default), BT, GT, LT, GE, LE.' },
                           sign: { type: 'string', description: 'I=include (default), E=exclude.' },
                           nodeId: {
@@ -3968,7 +3973,8 @@ const TOOL_DEFINITIONS = [
                             description:
                               '1 = the value is a node of the query\'s hierarchy (a group), 0 = a plain member (default). ' +
                               'With 1 and no nodeType, the node is taken to be a characteristic value of this ' +
-                              'characteristic. Pass the node key as lowInt (the intKey of the node row, e.g. from a ' +
+                              'characteristic. Excluding a node (sign E) is not supported by BW here: it is applied as included, and the ' +
+                              'answer says so under "Not applied". Pass the node key as lowInt (the intKey of the node row, e.g. from a ' +
                               'result with the hierarchy on rows).',
                           },
                           nodeType: {
