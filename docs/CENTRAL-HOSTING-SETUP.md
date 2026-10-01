@@ -85,6 +85,8 @@ the BTP subaccount.
    - `/sap/bw4`
    - `/sap/bc/http/sap/bw4`
    - `/sap/opu/odata/sap`
+   - `/sap/bc/adt` — required on classic BW (7.5): the metadata-table reads
+     (`bw_read_metadata_tables`, parts of `bw_xref`) go through the ADT DataPreview service
 5. Check the mapping status is green (**Reachable**).
 
 > For principal propagation (Stage 2) the Cloud Connector needs additional certificate

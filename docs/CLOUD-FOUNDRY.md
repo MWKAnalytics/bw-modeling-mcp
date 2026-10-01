@@ -96,8 +96,11 @@ MCP client --XSUAA JWT--> this app --X-User-Token--> Destination service
 6. **Access control entry**: Protocol HTTPS, *Allow Principal Propagation* ✓, Principal
    Type **X.509 Certificate**.
 7. **Expose the resources** — a step separate from the system mapping, and easily missed:
-   `/sap/bw/modeling`, `/sap/bw4`, `/sap/bc/http/sap/bw4`, `/sap/opu/odata/sap`, each with
-   *Path and all sub-paths*. A mapping created earlier for ADT exposes only `/sap/bc/adt`.
+   `/sap/bw/modeling`, `/sap/bw4`, `/sap/bc/http/sap/bw4`, `/sap/opu/odata/sap` and
+   `/sap/bc/adt`, each with *Path and all sub-paths*. A mapping created earlier for ADT
+   exposes only `/sap/bc/adt`. On classic BW (7.5) `/sap/bc/adt` is required: the
+   metadata-table reads (`bw_read_metadata_tables`, parts of `bw_xref`) go through the ADT
+   DataPreview service.
 
 **ABAP**
 
