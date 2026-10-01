@@ -604,6 +604,13 @@ function renderQueryText(q: Record<string, unknown>): string {
   lines.push(`  Result position: top=${bool(rp['onTop'])}  left=${bool(rp['onLeft'])}`);
   lines.push(`  RFC=${bool(settings['rfcEnabled'])}  OData=${bool(settings['odataSupport'])}  EasyQuery=${bool(settings['easyQuery'])}`);
   lines.push(`  Sign presentation: ${s(settings['signPresentation'])}`);
+  const kd = settings['keyDate'] as Record<string, unknown> | undefined;
+  if (kd) {
+    const kdText = kd['kind'] === 'variable'
+      ? `variable ${s(kd['variable'])}${kd['description'] ? ` (${kd['description']})` : ''}`
+      : kd['kind'] === 'fixed' ? `fixed ${s(kd['date'])}` : 'system date';
+    lines.push(`  Key date: ${kdText}`);
+  }
 
   const variables = q['variables'] as unknown[] ?? [];
   if (variables.length > 0) {
@@ -613,6 +620,10 @@ function renderQueryText(q: Record<string, unknown>): string {
       lines.push(`  ${s(v['technicalName'])}  ${s(v['description'])}`);
       lines.push(`    InfoObject: ${s(v['infoObject'])}  Type: ${s(v['type'])}  ProcType: ${s(v['procType'])}`);
       lines.push(`    InputType: ${s(v['inputType'])}  Represents: ${s(v['represents'])}`);
+      const usedIn = (v['usedIn'] as string[] | undefined) ?? [];
+      lines.push(usedIn.length > 0
+        ? `    Used in: ${usedIn.join('; ')}`
+        : '    Used in: no use found in the query definition');
     }
   }
 
@@ -733,28 +744,12 @@ function renderQueryText(q: Record<string, unknown>): string {
   return lines.join('\n');
 }
 
-export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'text'): Promise<string> {
-  const client = createClientFromEnv();
-
-  const basePath = `/sap/bw/modeling/query/${bwSeg(queryName)}`;
-  let xmlBody: string;
-  let versionNote: string | undefined;
-
-  const accept = queryAccept();
-  try {
-    const result = await client.get(`${basePath}/a`, accept);
-    xmlBody = result.body;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('HTTP 404')) {
-      const result = await client.get(`${basePath}/m`, accept);
-      xmlBody = result.body;
-      versionNote = 'inactive version returned';
-    } else {
-      throw err;
-    }
-  }
-
+/** The query document as `bw_get_query` reports it, before rendering. */
+export function parseQueryDocument(
+  xmlBody: string,
+  queryName: string,
+  versionNote?: string,
+): Record<string, unknown> {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
@@ -825,6 +820,8 @@ export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'te
     }
   }
 
+  const variableUsage = collectVariableUsage(root, variableMap);
+
   // Step 3: Parse mainComponent metadata
   const mainComp = root['Qry:mainComponent'] as Record<string, unknown>;
   const entityProps = mainComp['Qry:entityProperties'] as Record<string, unknown>;
@@ -851,6 +848,7 @@ export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'te
       procType: (sc['Qry:procType'] as string) ?? '',
       inputType: (sc['Qry:inputType'] as string) ?? '',
       represents: (sc['Qry:represents'] as string) ?? '',
+      usedIn: variableUsage.get((sc['@_technicalName'] as string) ?? '') ?? [],
     };
     const defaultSel = sc['Qry:defaultSelection'] as Record<string, unknown> | undefined;
     if (defaultSel && defaultSel['@_fromValue'] !== undefined) {
@@ -1069,6 +1067,7 @@ export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'te
     suppressRepeatedKeyValues: mainComp['@_suppressRepeatedKeyValues'] === 'true' || mainComp['@_suppressRepeatedKeyValues'] === true,
     showScalingFactor: mainComp['@_showScalingFactor'] === 'true' || mainComp['@_showScalingFactor'] === true,
     signPresentation: (mainComp['@_signPresentation'] as string) ?? '',
+    keyDate: parseKeyDate(mainComp['Qry:keyDate'], variableMap),
     zeroSuppression,
     planning: {
       inputMode: planningNode?.['@_inputMode'] === 'true' || planningNode?.['@_inputMode'] === true,
@@ -1112,7 +1111,161 @@ export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'te
   };
 
   if (versionNote) output['versionNote'] = versionNote;
+  return output;
+}
 
+type VariableRef = { technicalName: string; description: string };
+
+/**
+ * The key date of the query: the system date unless a fixed date or a variable is set.
+ * A variable is referenced by its subcomponent id, with its technical name alongside.
+ */
+export function parseKeyDate(
+  node: unknown,
+  variableMap: Map<string, VariableRef>,
+): Record<string, unknown> {
+  if (!node || typeof node !== 'object') return { kind: 'systemDate' };
+  const kd = node as Record<string, unknown>;
+  const varId = kd['Qry:variable'] as string | undefined;
+  const value = kd['Qry:value'] as string | undefined;
+  if (varId) {
+    const v = variableMap.get(String(varId));
+    return {
+      kind: 'variable',
+      variable: v?.technicalName || (value ? String(value) : String(varId)),
+      description: v?.description ?? '',
+    };
+  }
+  if (value !== undefined && value !== '') return { kind: 'fixed', date: String(value) };
+  return { kind: 'systemDate' };
+}
+
+const ownDescription = (n: Record<string, unknown>) =>
+  ((n['Qry:description'] as Record<string, unknown> | undefined)?.['@_value'] as string) ?? '';
+
+/**
+ * Where each variable of the query is used, keyed by technical name.
+ *
+ * A variable declared in the query but referenced nowhere in its body reads as unused, and
+ * is soon deleted — although the key date or a formula may depend on it. So every
+ * reference to a variable's id is collected, wherever in the document it sits, and named
+ * after the part of the query that holds it; a part this reader does not know is still
+ * reported by its element name rather than dropped. Text variables are referenced by name
+ * in a description (`&NAME&`) and are found there.
+ */
+export function collectVariableUsage(
+  root: Record<string, unknown>,
+  variableMap: Map<string, VariableRef>,
+): Map<string, string[]> {
+  const usage = new Map<string, string[]>();
+  for (const v of variableMap.values()) usage.set(v.technicalName, []);
+  const byName = new Map([...variableMap.values()].map((v) => [v.technicalName.toUpperCase(), v.technicalName]));
+  const add = (name: string, where: string) => {
+    const list = usage.get(name);
+    if (list && !list.includes(where)) list.push(where);
+  };
+
+  const label = (tag: string, node: Record<string, unknown>, context: string): string => {
+    const desc = ownDescription(node);
+    const tech = (node['@_technicalName'] as string) || (node['@_infoObjectName'] as string) || '';
+    const io = (node['@_infoObject'] as string) || '';
+    const named = (kind: string) => `${kind} "${desc || tech || io}"`;
+    switch (tag) {
+      case 'Qry:keyDate': return 'key date';
+      case 'Qry:filter': return 'filter';
+      case 'Qry:selections':
+        if (context === 'filter') {
+          return node['@_usageType'] === 'asStartValue' ? `default value of ${io}` : `filter on ${io}`;
+        }
+        return io ? `${context}, restriction on ${io}` : context;
+      case 'Qry:rows':
+      case 'Qry:columns':
+      case 'Qry:free': return `layout, ${tech || desc || 'structure'}`;
+      case 'Qry:members':
+      case 'Qry:childMembers': return named('structure member');
+      case 'Qry:formulaDefinition': return `${context} (formula)`;
+      case 'Qry:exceptions': return named('exception');
+      case 'Qry:conditions': return named('condition');
+      case 'Qry:gridCells':
+      case 'Qry:helpCells': return named('cell');
+      default: return context;
+    }
+  };
+
+  const walk = (node: unknown, context: string, ownId?: string) => {
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n, context, ownId);
+      return;
+    }
+    if (node === null || typeof node !== 'object') {
+      const v = node === undefined || node === null ? undefined : variableMap.get(String(node));
+      if (v && String(node) !== ownId) add(v.technicalName, context);
+      return;
+    }
+    const obj = node as Record<string, unknown>;
+    const desc = ownDescription(obj);
+    for (const m of desc.matchAll(/&([A-Z0-9_/]+)&/gi)) {
+      const name = byName.get(m[1].toUpperCase());
+      if (name) add(name, `text of ${context}`);
+    }
+    for (const [key, value] of Object.entries(obj)) {
+      if (key.startsWith('@_')) {
+        if (key === '@_id' || key === '@_xsi:type') continue;
+        const v = variableMap.get(String(value));
+        if (v && String(value) !== ownId) add(v.technicalName, context);
+        continue;
+      }
+      if (key === '#text') {
+        walk(value, context, ownId);
+        continue;
+      }
+      const children = Array.isArray(value) ? value : [value];
+      for (const child of children) {
+        const childLabel = child && typeof child === 'object'
+          ? label(key, child as Record<string, unknown>, context)
+          : (key === 'Qry:keyDate' ? 'key date' : context);
+        walk(child, childLabel, ownId);
+      }
+    }
+  };
+
+  const main = root['Qry:mainComponent'] as Record<string, unknown> | undefined;
+  if (main) walk(main, 'query');
+  for (const sc of ensureArray(root['Qry:subComponents']) as Record<string, unknown>[]) {
+    const scType = (sc['@_xsi:type'] as string) ?? '';
+    const tech = (sc['@_technicalName'] as string) ?? '';
+    const kind = scType === 'Qry:CalculatedMeasure' ? 'CKF'
+      : scType === 'Qry:RestrictedMeasure' ? 'RKF'
+      : scType === 'Qry:Variable' ? 'variable'
+      : scType.replace(/^Qry:/, '').toLowerCase() || 'component';
+    walk(sc, `${kind} ${tech}`, sc['@_id'] as string | undefined);
+  }
+  return usage;
+}
+
+export async function bwGetQuery(queryName: string, format: 'text' | 'raw' = 'text'): Promise<string> {
+  const client = createClientFromEnv();
+
+  const basePath = `/sap/bw/modeling/query/${bwSeg(queryName)}`;
+  let xmlBody: string;
+  let versionNote: string | undefined;
+
+  const accept = queryAccept();
+  try {
+    const result = await client.get(`${basePath}/a`, accept);
+    xmlBody = result.body;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('HTTP 404')) {
+      const result = await client.get(`${basePath}/m`, accept);
+      xmlBody = result.body;
+      versionNote = 'inactive version returned';
+    } else {
+      throw err;
+    }
+  }
+
+  const output = parseQueryDocument(xmlBody, queryName, versionNote);
   if (format === 'raw') return JSON.stringify(output, null, 2);
   return renderQueryText(output);
 }

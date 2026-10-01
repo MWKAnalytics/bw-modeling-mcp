@@ -1975,6 +1975,9 @@ const TOOL_DEFINITIONS = [
         'calculation (results / single values as), exception aggregation, position, nested child members and the inverse formulas that make an input-ready ' +
         'formula writable. A member that shows a reusable CKF reports the CKF\'s own exception aggregation ' +
         'separately from the member\'s. ' +
+        'Each variable lists where the query uses it — filter, default value, key date, structure member, formula, ' +
+        'CKF/RKF, exception, condition, cell or text — or says that no use was found; the settings carry the ' +
+        'key date (system date, a fixed date or a variable). ' +
         'Tries the active version first; falls back to the inactive version if not found. ' +
         'format="text" (default): compact human-readable output. format="raw": full parsed JSON.',
       inputSchema: {
