@@ -1971,7 +1971,8 @@ const TOOL_DEFINITIONS = [
     {
       name: 'bw_get_query',
       description:
-        'Read a BW Query definition — variables, filter, layout (rows/columns/free characteristics), ' +
+        'Read a BW Query definition — variables, filter, layout (rows/columns/free characteristics, each with ' +
+        'its display hierarchy if one is assigned: name, active or not, version, key date, expand level), ' +
         'calculated and restricted measures, exceptions, and cell definitions. ' +
         'Structure members are reported with their properties: input readiness and disaggregation ' +
         '(the planning settings), decimals, scaling, sign inversion, constant selection, the local ' +
@@ -3927,8 +3928,13 @@ const TOOL_DEFINITIONS = [
                     hierarchy: {
                       type: 'object',
                       description:
-                        'Active hierarchy for this characteristic. Required when filtering by hierarchy node (nodeId=1). ' +
-                        'Copy id, name, hryId, hryDateFrom, hryDateTo from the <hierarchy> element in the GET response.',
+                        'Not applied by BW: the reporting endpoint reads this element and discards it, so the ' +
+                        'hierarchy always comes from the query definition (bw_get_query lists it per characteristic). ' +
+                        'It cannot switch a hierarchy off or to another one — that takes a change to the query ' +
+                        '(bw_update_query_characteristic) or a copy of it. A hierarchy-node filter (nodeId=1) is ' +
+                        'evaluated against the query\'s own hierarchy too; passing this object does not change the ' +
+                        'result. When it is passed and the hierarchy BW reports for the characteristic differs, the ' +
+                        'text answer says so.',
                       properties: {
                         id: { type: 'string', description: 'Hierarchy id attribute from GET response.' },
                         name: { type: 'string', description: 'Hierarchy name (technical name).' },

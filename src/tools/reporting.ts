@@ -368,6 +368,52 @@ function parseMessages(xml: string): Array<{ type: string; txt: string }> {
   return msgs;
 }
 
+/**
+ * The hierarchy BW reports per InfoObject in the `<state>` of a response, keyed by
+ * InfoObject id; an InfoObject without a hierarchy maps to null.
+ */
+export function parseStateHierarchies(xml: string): Map<string, { name: string; hryId: string } | null> {
+  const result = new Map<string, { name: string; hryId: string } | null>();
+  const stateMatch = xml.match(/<state>([\s\S]*?)<\/state>/);
+  if (!stateMatch) return result;
+  const ioRe = /<infoObject\b([^>]*?)(?:\/>|>([\s\S]*?)<\/infoObject>)/g;
+  let io: RegExpExecArray | null;
+  while ((io = ioRe.exec(stateMatch[1])) !== null) {
+    const id = attr(io[1], 'id');
+    if (id === null) continue;
+    const hry = io[2]?.match(/<hierarchy\b([^>]*?)\/?>/);
+    result.set(id, hry ? { name: attr(hry[1], 'name') ?? '', hryId: attr(hry[1], 'hryId') ?? '' } : null);
+  }
+  return result;
+}
+
+/**
+ * One line per requested hierarchy that BW did not apply. The reporting endpoint reads the
+ * `<hierarchy>` element of a request and discards it — the hierarchy always comes from the
+ * query definition — and it says nothing about that. A caller that tried to switch a
+ * hierarchy off or to another one would otherwise read the unchanged result as an answer.
+ */
+export function hierarchyMismatchNotes(state: { infoObjects: InfoObjectState[] } | undefined, xml: string): string[] {
+  const requested = (state?.infoObjects ?? []).filter((io) => io.hierarchy);
+  if (requested.length === 0) return [];
+  const reported = parseStateHierarchies(xml);
+  const notes: string[] = [];
+  for (const io of requested) {
+    if (!reported.has(io.id)) continue;
+    const want = io.hierarchy!.name ?? '';
+    const got = reported.get(io.id);
+    if ((got?.name ?? '') === want) continue;
+    const wantText = want ? `hierarchy ${want}` : 'no hierarchy';
+    const gotText = got ? `hierarchy ${got.name}${got.hryId ? ` (${got.hryId})` : ''}` : 'no hierarchy';
+    notes.push(
+      `  ${io.name}: ${wantText} was requested, BW applied ${gotText}. The hierarchy comes from the query ` +
+      'definition and cannot be changed through the request; change the query (bw_update_query_characteristic) ' +
+      'or use a copy of it.',
+    );
+  }
+  return notes;
+}
+
 // ── Text rendering ──────────────────────────────────────────────────────────────
 
 // Renders a human-readable label for a tuple's values.
@@ -805,9 +851,13 @@ export async function bwQueryData(
   const renderMs = performance.now() - renderStart;
   const totalMs = performance.now() - startedAt;
 
+  // A requested hierarchy that BW did not apply is named under the result (text only).
+  const notes = format === 'raw' ? [] : hierarchyMismatchNotes(state, responseXml);
+  const answer = notes.length > 0 ? `${rendered}\n\n── Not applied ──\n${notes.join('\n')}` : rendered;
+
   // Without with_statistics the answer stays exactly as before: raw output in particular is
   // often written to a file and compared, and a trailing block would change it.
-  if (!options.withStatistics) return rendered;
+  if (!options.withStatistics) return answer;
 
   const extra = renderTiming(timing, totalMs, renderMs);
   const statsStart = performance.now();
@@ -824,7 +874,7 @@ export async function bwQueryData(
     // A comment after the root element keeps the document well-formed.
     return `${rendered}\n<!--\n${extra.join('\n').replace(/--/g, '- -')}\n-->`;
   }
-  return `${rendered}\n${extra.join('\n')}`;
+  return `${answer}\n${extra.join('\n')}`;
 }
 
 export async function bwGetFilterValues(
