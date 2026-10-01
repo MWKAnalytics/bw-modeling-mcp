@@ -32,7 +32,7 @@ stdio is unchanged — `npm start` behaves exactly as before. Setup:
 
 A new tool stays unavailable to read-only callers until it is explicitly classified as a
 read, so the surface never widens by accident; `write` implies `read`, never the reverse.
-The two role collections are a starting point and can be split further in `xs-security.json`.
+The three role collections are a starting point and can be split further in `xs-security.json`.
 Principal propagation additionally needs a certificate rule and ICM trust on the BW side.
 
 ---
@@ -61,35 +61,65 @@ A two-part blog series about this project (both available in German and English)
 
 ---
 
-## 🆕 What's New — v1.6.0
+## 🆕 What's New — v1.7.0
 
-Modelling on a classic **SAP BW 7.5 on HANA** system is verified in both directions — every
-create and update tool was run against a 7.5 backend and read back — and the last of the
-reusable query building blocks, the variable, can now be read back and corrected too.
+### On every release (BW/4HANA and BW 7.5)
 
-**🏛️ Writing on BW 7.5 on HANA**
+**📊 Queries, finished in the tools**
 
-- InfoAreas, InfoObjects, aDSOs, InfoSources, CompositeProviders, queries with their
-  reusable components, aggregation levels, activation, move, unlock and delete — each
-  written and read back on a 7.5 system
-- `bw_system_profile` names the status of every write tool on the connected system, so
-  "can I model this here" is answered by the server
+- New `bw_update_query_cells` — reference, formula and help cells in two-structure queries
+- Scaling and local calculation on structure members, exception aggregation on reusable CKFs
+- `bw_get_query` shows cells, selections, calculation and exception aggregation as written
 
-**🔤 Variables, read back and corrected**
+**🧩 CompositeProviders ready for queries**
 
-- `bw_get_variable` returns what was actually stored. The modelling API accepts an enum
-  literal it does not know, saves its default and still reports the object as consistent,
-  so a create alone proves nothing
-- `bw_update_variable` corrects one with its UID unchanged, so references from queries,
-  CKFs and structures survive — the only path before was delete-and-recreate, which BW
-  refuses once anything references the variable
+- Field groups and name usage (`direct` / `unique_name`) via `bw_update_composite_provider`
+- Fields named after their InfoObject use it directly, so a query finds them by that name
 
-**On BW/4HANA nothing changes** — what a classic release needs is added beside the existing
+**🧭 Data flow with direction**
+
+- `bw_xref` says which way every transformation and DTP points (upstream / downstream)
+- Aggregation levels and planning functions appear in the where-used list with direction,
+  so the planning input of a provider is visible in its lineage
+
+**🛡️ No silent no-ops**
+
+- A writing tool refuses a parameter it does not declare instead of reporting success
+- `bw_get_transformation` and the classic metadata reader show the aggregation type per rule
+
+**☁️ Hosted on SAP BTP**
+
+- The login no longer asks for the `read` scope alone, so a caller with the developer role
+  gets the write tools in every MCP client, and an analyst-only role is accepted
+
+### BW/4HANA specific
+
+**🔁 Transformation rules**
+
+- Aggregation type per rule into a target key figure (`SUM`, `MOV`, `MIN`, `MAX`, `NOP`)
+  via `bw_update_transformation` — a key figure left on `MOV` in an aggregating
+  transformation no longer has to be fixed by hand
+- Currency and unit conversion on direct rules; rules on currency or unit key figures
+  now activate
+
+### BW 7.5 specific
+
+**🏛️ Lineage where no REST route exists**
+
+- `bw_xref` lists the analysis processes that write to or read from a provider
+- `bw_read_metadata_tables` reads InfoPackages (selections, routines, file settings, load
+  history), the field rules of analysis processes and the global part of transformation routines
+- Classic DSOs, InfoCubes and MultiProviders list their fields with meaning; MultiProvider
+  parts come with their type
+- The DTP filter is readable through an optional helper endpoint in `bw75/`
+- Metadata reads on a BTP-hosted instance no longer fail with HTTP 500 at the start of a call
+
+**On BW/4HANA nothing breaks** — what a classic release needs is added beside the existing
 behaviour, never in place of it.
 
 ---
 
-**Earlier releases** — the "What's New" notes for v1.5.0 and older are archived in [WHATS_NEW.md](WHATS_NEW.md); the full structured history is in [CHANGELOG.md](CHANGELOG.md).
+**Earlier releases** — the "What's New" notes for v1.6.0 and older are archived in [WHATS_NEW.md](WHATS_NEW.md); the full structured history is in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

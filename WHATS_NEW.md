@@ -8,6 +8,34 @@ For the complete, structured change history see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+## What's New — v1.6.0
+
+Modelling on a classic **SAP BW 7.5 on HANA** system is verified in both directions — every
+create and update tool was run against a 7.5 backend and read back — and the last of the
+reusable query building blocks, the variable, can now be read back and corrected too.
+
+**🏛️ Writing on BW 7.5 on HANA**
+
+- InfoAreas, InfoObjects, aDSOs, InfoSources, CompositeProviders, queries with their
+  reusable components, aggregation levels, activation, move, unlock and delete — each
+  written and read back on a 7.5 system
+- `bw_system_profile` names the status of every write tool on the connected system, so
+  "can I model this here" is answered by the server
+
+**🔤 Variables, read back and corrected**
+
+- `bw_get_variable` returns what was actually stored. The modelling API accepts an enum
+  literal it does not know, saves its default and still reports the object as consistent,
+  so a create alone proves nothing
+- `bw_update_variable` corrects one with its UID unchanged, so references from queries,
+  CKFs and structures survive — the only path before was delete-and-recreate, which BW
+  refuses once anything references the variable
+
+**On BW/4HANA nothing changes** — what a classic release needs is added beside the existing
+behaviour, never in place of it.
+
+---
+
 ## What's New — v1.5.0
 
 Classic SAP BW 7.5 becomes a first-class system, business users get a client of their own,

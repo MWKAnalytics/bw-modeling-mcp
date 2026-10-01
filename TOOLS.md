@@ -1,6 +1,6 @@
 # Tools Reference
 
-Every tool the server exposes — 105 in total — with what it does and the parameters that matter.
+Every tool the server exposes — 108 in total — with what it does and the parameters that matter.
 Tools marked _(Read only)_ change nothing in BW; everything else writes, activates, runs, or unlocks.
 A writing tool refuses a parameter it does not declare and names the ones it takes, so a misspelt
 parameter cannot be reported as applied.
