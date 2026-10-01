@@ -3961,7 +3961,22 @@ const TOOL_DEFINITIONS = [
                           high: { type: 'string', description: 'Upper bound for interval operator BT.' },
                           op: { type: 'string', description: 'Operator: EQ (default), BT, GT, LT, GE, LE.' },
                           sign: { type: 'string', description: 'I=include (default), E=exclude.' },
-                          nodeId: { type: 'number', description: 'Node selection mode: 0=leaf member (default), 1=hierarchy node (use when filtering a collapsed hierarchy node like a group).' },
+                          nodeId: {
+                            type: 'number',
+                            description:
+                              '1 = the value is a node of the query\'s hierarchy (a group), 0 = a plain member (default). ' +
+                              'With 1 and no nodeType, the node is taken to be a characteristic value of this ' +
+                              'characteristic. Pass the node key as lowInt (the intKey of the node row, e.g. from a ' +
+                              'result with the hierarchy on rows).',
+                          },
+                          nodeType: {
+                            type: 'string',
+                            description:
+                              'Type of the hierarchy node, i.e. its InfoObject: "0HIER_NODE" for text nodes (e.g. the ' +
+                              'root "~ROOT" or a pure grouping node), or the characteristic for nodes that are ' +
+                              'characteristic values (the default with nodeId=1). BW selects a node only with the right ' +
+                              'type; with the wrong one it filters the key as a plain member.',
+                          },
                         },
                       },
                     },

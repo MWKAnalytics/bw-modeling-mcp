@@ -24,7 +24,29 @@ export interface InfoObjectState {
     op?: string;
     sign?: string;
     nodeId?: number;
+    nodeType?: string;
   }>;
+}
+
+/**
+ * The node type a hierarchy-node filter value is sent with, or undefined for a plain member.
+ *
+ * BW selects a hierarchy node only through the `nodeName` attribute of a selectValue: the
+ * reporting endpoint looks that name up among the node types of the query's hierarchy and
+ * sets it on the selection. `nodeId` is read and never used, so a value sent with nodeId=1
+ * alone is filtered as an ordinary member — "No data available" for a node key, or "Filter
+ * changed" when the key does not convert. A node type is the InfoObject of the node:
+ * 0HIER_NODE for text nodes, the characteristic itself for nodes that are characteristic
+ * values. Without an explicit type, nodeId=1 assumes the latter, the characteristic of the
+ * state entry (its attribute for a navigation attribute).
+ */
+export function hierarchyNodeType(
+  iobjName: string,
+  fv: { nodeId?: number; nodeType?: string },
+): string | undefined {
+  if (fv.nodeType) return fv.nodeType;
+  if (fv.nodeId !== 1) return undefined;
+  return iobjName.includes('__') ? iobjName.slice(iobjName.lastIndexOf('__') + 2) : iobjName;
 }
 
 export interface DrillOperation {
@@ -611,7 +633,7 @@ export function renderQueryDataText(xml: string, isGet: boolean, paging?: Render
 
 // ── POST body builder ──────────────────────────────────────────────────────────
 
-function buildPostBody(
+export function buildPostBody(
   compId: string,
   state?: { infoObjects: InfoObjectState[] },
   variables?: VariableInput[],
@@ -662,10 +684,12 @@ function buildPostBody(
           const lowText = fv.lowText ? ` lowText="${xmlEscape(fv.lowText)}"` : '';
           const high = fv.high ? ` high="${xmlEscape(fv.high)}"` : '';
           const nodeId = fv.nodeId ?? 0;
+          const nodeType = hierarchyNodeType(io.name, fv);
+          const nodeName = nodeType ? ` nodeName="${xmlEscape(nodeType)}"` : '';
           if (fv.lowInt) {
-            parts.push(`        <selectValue id="${svId++}" lowInt="${xmlEscape(fv.lowInt)}"${high} nodeId="${nodeId}" hryMinLvl="0" op="${op}" sign="${sign}" presentationMode="INT"/>`);
+            parts.push(`        <selectValue id="${svId++}" lowInt="${xmlEscape(fv.lowInt)}"${high} nodeId="${nodeId}"${nodeName} hryMinLvl="0" op="${op}" sign="${sign}" presentationMode="INT"/>`);
           } else {
-            parts.push(`        <selectValue id="${svId++}" low="${xmlEscape(fv.low ?? '')}"${lowText}${high} nodeId="${nodeId}" hryMinLvl="0" op="${op}" sign="${sign}" presentationMode="EXT_NC"/>`);
+            parts.push(`        <selectValue id="${svId++}" low="${xmlEscape(fv.low ?? '')}"${lowText}${high} nodeId="${nodeId}"${nodeName} hryMinLvl="0" op="${op}" sign="${sign}" presentationMode="EXT_NC"/>`);
           }
         }
         parts.push(`      </infoObject>`);
