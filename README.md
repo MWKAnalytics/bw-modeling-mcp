@@ -70,6 +70,8 @@ A two-part blog series about this project (both available in German and English)
 - New `bw_update_query_cells` — reference, formula and help cells in two-structure queries
 - Scaling and local calculation on structure members, exception aggregation on reusable CKFs
 - `bw_get_query` shows cells, selections, calculation and exception aggregation as written
+- `bw_get_query` shows the key date and, for every variable, where the query uses it, so a
+  variable behind the key date no longer looks unused
 
 **🧩 CompositeProviders ready for queries**
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.1] — 2026-10-01
+
+### Fixed
+
+- **A variable used as the key date of a query looked unused** — `bw_get_query` did not read the key date, so a variable set there was listed among the variables of the query but referenced nowhere else in the answer, and a reader concluded it could be deleted. The settings now carry the key date — the system date, a fixed date, or a variable with its name and description — and every variable lists where the query uses it: the filter, a default value, the key date, a structure member, a formula, a calculated or restricted key figure, an exception, a condition, a cell, or a text. The references are collected from the whole document, so a use in a part of the query the reader does not interpret is still found and named; a variable referenced nowhere is marked as such. Verified on BW/4HANA with a key date variable set in the modeling tools.
+
 ## [1.7.0] — 2026-10-01
 
 ### Added
