@@ -3908,10 +3908,13 @@ const TOOL_DEFINITIONS = [
           state: {
             type: 'object',
             description:
-              'Axis layout and optional per-characteristic filters, as a change to the default layout: list only the ' +
-              'InfoObjects you place on an axis or filter. Everything not listed keeps its default — the query\'s own ' +
-              'layout (rows, columns, hierarchies), or FREE on a direct provider call. Listing every InfoObject is not ' +
-              'needed and makes each call slower, since the whole state has to be written out every time. ' +
+              'Axis layout and optional per-characteristic filters. A state is the complete layout of rows and ' +
+              'columns: the result shows there exactly the characteristics and structures the state lists on ' +
+              'ROWS and COLUMNS, in the order given, and every other one drops out — even when only a FREE ' +
+              'characteristic is listed, and although BW still echoes the old layout. So to filter a ' +
+              'characteristic and keep the layout, list everything that should stay on rows and columns ' +
+              '(from the GET, the key-figure structure included), in order. Characteristics staying on FREE ' +
+              'need not be listed. Without a state (variables only) the query layout stays. ' +
               'id values must come from the GET metadata response.',
             properties: {
               infoObjects: {
