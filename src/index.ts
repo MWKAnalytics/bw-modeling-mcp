@@ -3911,10 +3911,12 @@ const TOOL_DEFINITIONS = [
           state: {
             type: 'object',
             description:
-              'Axis layout and optional per-characteristic filters, as a change to the default layout: list only the ' +
-              'InfoObjects you place on an axis or filter. Everything not listed keeps its default — the query\'s own ' +
-              'layout (rows, columns, hierarchies), or FREE on a direct provider call. Listing every InfoObject is not ' +
-              'needed and makes each call slower, since the whole state has to be written out every time. ' +
+              'Axis layout and optional per-characteristic filters, as a change to the default layout. The ' +
+              'characteristics listed on ROWS or COLUMNS replace that axis, in the order given: another one the ' +
+              'query has there drops out of the result. So to filter a characteristic and keep the layout, list ' +
+              'every characteristic of its axis (from the GET), in order. An axis the request lists nothing on ' +
+              'keeps its default — the query\'s own layout, or FREE on a direct provider call — and FREE ' +
+              'characteristics need not be listed: writing out the whole state makes each call slower. ' +
               'id values must come from the GET metadata response.',
             properties: {
               infoObjects: {
