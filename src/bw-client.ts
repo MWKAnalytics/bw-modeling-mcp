@@ -176,6 +176,11 @@ export interface GetResult {
   headers: Record<string, string>;
 }
 
+/** The answer to a request that carried the `sap-contextid` of a context the server has ended. */
+export function isSessionTimeout(status: number, data: unknown): boolean {
+  return status === 400 && typeof data === 'string' && /session\s+timed\s+out/i.test(data);
+}
+
 /**
  * Turn a failed response into an error message a model can act on.
  *
@@ -1050,6 +1055,9 @@ export class BwClient {
     });
     this.updateCookies(response);
     if (response.status >= 400) {
+      if (response.status === 500 || isSessionTimeout(response.status, response.data)) {
+        this.discardSessionContext();
+      }
       throw bwHttpError(`POST ${url}`, response.status, response.data);
     }
     return {

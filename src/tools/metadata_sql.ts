@@ -82,9 +82,32 @@ export function parseDataPreview(xml: string): Row[] {
  * open their own session and one of them loses (verified on a 7.5 system — reproducible on
  * a cold client, never on one that has run a single statement before). A malformed
  * statement does not come back this way; the service reports that as HTTP 400 with a
- * message, so the retry cannot swallow a real SQL error.
+ * message, so the retry cannot swallow a real SQL error. The client drops the session
+ * context of the failed request, so the second attempt does not carry it; "400 Session
+ * timed out" is what carrying it gets, and is retried on the same grounds.
+ *
+ * The retry is the fallback. What prevents the race is that the first statement on a client
+ * runs alone: readers fire several statements at once, and on the hosted transport every
+ * tool call starts with a fresh client, so without this every such read began with a burst
+ * on a cold session (verified on a 7.5 system behind the Cloud Connector — one retry did
+ * not always win).
  */
 export async function queryTable(client: BwClient, sql: string, maxRows = 500): Promise<Row[]> {
+  for (;;) {
+    const opening = sessionOpened.get(client);
+    if (!opening) break;
+    if (await opening) return runStatement(client, sql, maxRows);
+    // The statement that was to open the session failed; the next caller tries in its place.
+    if (sessionOpened.get(client) === opening) sessionOpened.delete(client);
+  }
+  const first = runStatement(client, sql, maxRows);
+  sessionOpened.set(client, first.then(() => true, () => false));
+  return first;
+}
+
+const sessionOpened = new WeakMap<BwClient, Promise<boolean>>();
+
+async function runStatement(client: BwClient, sql: string, maxRows: number): Promise<Row[]> {
   const run = async (): Promise<string> => {
     const token = await client.getCsrfToken();
     const { body } = await client.rawPost(
@@ -110,7 +133,7 @@ export async function queryTable(client: BwClient, sql: string, maxRows = 500): 
     if (/ECONNRESET|ECONNABORTED|EPIPE|socket hang up/i.test(message)) {
       return parseDataPreview(await run());
     }
-    if (/HTTP 500/.test(message)) {
+    if (/HTTP 500/.test(message) || /HTTP 400[\s\S]*session\s+timed\s+out/i.test(message)) {
       return parseDataPreview(await run());
     }
     throw err;
